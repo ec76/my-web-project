@@ -5,10 +5,13 @@ shared Material UI component package.
 
 ## Local setup
 
-Install dependencies from the repository root:
+Use Node.js 24 (the repository supports `>=24`; CI selects 24) and exactly
+npm 11.19.1, as required by `devEngines.packageManager`. For a fresh clone:
 
 ```sh
-npm install
+git clone https://github.com/ec76/my-web-project.git
+cd my-web-project
+npm ci
 ```
 
 Start the development server:
@@ -30,12 +33,26 @@ npm run lint
 npm run check-types
 npm run storybook
 npm run build-storybook
+npm run build:azure
+npm run format
+npm run format:check
+npm test
+npm run test:watch
+npm run test:coverage
 ```
 
 Storybook runs at [http://localhost:6006](http://localhost:6006). The static
 build is written to `apps/storybook/storybook-static`.
 
 ## Azure Static Web Apps Free
+
+| Azure resource       | Value                                                   |
+| -------------------- | ------------------------------------------------------- |
+| Static Web App       | `my-web-project`                                        |
+| Resource group       | `rg-my-web-project`                                     |
+| Hosting plan         | Free                                                    |
+| deploymentAuthPolicy | `DeploymentToken`                                       |
+| Site                 | https://victorious-bush-002c17210.3.azurestaticapps.net |
 
 The website uses Next.js `output: "export"` and retains
 `transpilePackages: ["@repo/ui"]` for the shared Material UI components.
@@ -74,6 +91,21 @@ configuration**. If the GitHub secret is missing, add the deployment token under
 the repository's **Settings > Secrets and variables > Actions**, named
 `AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_BUSH_002C17210`. Do not put the token
 in source code or chat.
+
+To update the deployment token:
+
+1. In the Azure portal, open `my-web-project` in `rg-my-web-project` and choose
+   **Manage deployment token**. Copy the current token, or reset it if rotating
+   credentials. Resetting invalidates the previous token.
+2. In GitHub, open **Settings > Secrets and variables > Actions** and update
+   `AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_BUSH_002C17210` with the token.
+   Keep its value out of logs, documentation, source files, and chat.
+3. Open **Actions > Validate and Deploy**, select the failed run on `main`,
+   and choose **Re-run failed jobs**. Alternatively, use **Run workflow** on
+   `main` to validate and deploy again. Token rotation does not require a commit.
+
+See Microsoft's [deployment token management guide](https://learn.microsoft.com/en-us/azure/static-web-apps/deployment-token-management)
+for the portal steps.
 
 There is currently no `staticwebapp.config.json`. If needed, place it in
 `apps/web/public/staticwebapp.config.json` so Next.js includes it at the root of
@@ -118,7 +150,12 @@ and select Prettier for the project's supported languages.
 
 The workflow in `.github/workflows/validate-deploy.yml` runs on pushes to
 `main`, pull requests targeting `main`, and manual runs. Its flow is
-**Validate ? Deploy**.
+**Validate -> Deploy**.
+
+Work on a feature branch, push it, and open a pull request targeting `main`.
+Wait for Validate and review to pass, then merge. The resulting push to `main`
+runs Validate again; only after success does Deploy publish that exact build
+artifact. Open the site URL above to confirm the change is visible.
 
 Validate uses Node.js 24 and npm 11.19.1, bootstrapped from `runner.temp`
 before repository npm commands. It caches npm downloads using the root lockfile,
@@ -143,7 +180,7 @@ Any preview environments created by the old workflow may need one-time cleanup
 in the Azure portal under the Static Web App's Environments page. This change
 does not delete those environments automatically.
 
-View results under **Actions ? Validate and Deploy**, or the pull request's
+View results under **Actions > Validate and Deploy**, or the pull request's
 **Checks** tab. Manual runs are available through **Run workflow**. The job
 names are **Validate** and **Deploy**. Review branch-protection required checks
 if they reference old workflow/job names; require Validate rather than Deploy,
