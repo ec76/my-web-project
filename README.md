@@ -42,7 +42,7 @@ build is written to `apps/storybook/storybook-static`.
   in `packages/ui/src`.
 - Add component stories beside their components in `packages/ui/src` using the
   `*.stories.tsx` naming pattern. For example, copy the structure of
-  `packages/ui/src/content-card.stories.tsx`, define story args for the
+  `packages/ui/src/content-card/content-card.stories.tsx`, define story args for the
   component's props, and add the `autodocs` tag to enable generated docs and
   interactive controls.
 - Storybook's Vite configuration and preview decorators live in
