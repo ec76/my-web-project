@@ -67,7 +67,7 @@ entry point. Azure uploads these prebuilt files without an Oryx app build:
 
 The upload step retains `IS_STATIC_EXPORT: "true"`. Its app build command is
 omitted because the runner has already built the site. OIDC helper steps are
-no longer needed; upload and PR preview cleanup use the existing deployment-token
+no longer needed; production upload uses the existing deployment-token
 secret. If Azure disables deployment-token authentication, select the deployment
 token policy under the Static Web App's **Settings > Configuration > Deployment
 configuration**. If the GitHub secret is missing, add the deployment token under
@@ -116,21 +116,38 @@ and select Prettier for the project's supported languages.
 
 ## Continuous integration
 
-The `CI` GitHub Actions workflow runs on pushes to `main`, pull requests
-targeting `main`, and manual runs. Its `Validate` job installs dependencies
-with `npm ci`, then checks formatting, lint, TypeScript, unit tests once, the Next.js
-build, and the separate Storybook build using the root scripts.
+The workflow in `.github/workflows/validate-deploy.yml` runs on pushes to
+`main`, pull requests targeting `main`, and manual runs. Its flow is
+**Validate ? Deploy**.
 
-CI uses Node.js 24, matching the supported `>=24` engine range, and installs
-the npm version specified in `package.json` under `devEngines.packageManager`
-(currently 11.19.1). npm downloads are cached using the root lockfile.
-The job has a 20-minute timeout and read-only repository contents permissions.
-New runs cancel outdated runs for the same branch or pull request. No deployment
-or Turborepo remote cache credentials are required.
+Validate uses Node.js 24 and npm 11.19.1, bootstrapped from `runner.temp`
+before repository npm commands. It caches npm downloads using the root lockfile,
+runs `npm ci`, formatting checks, lint, TypeScript checks, unit tests,
+`npm run build:azure`, and the Storybook build. The Azure build is also the
+website build, so the overlapping `npm run build` does not run again.
 
-View results in the repository's **Actions → CI → Validate** job, or in a pull
-request's **Checks** tab. Expand a named step to inspect its logs. To run CI
-manually, choose **Actions → CI → Run workflow** on GitHub.
+Validate verifies `apps/web/out/index.html` and uploads the entire export as
+`web-static`, including hidden files and `staticwebapp.config.json` if used.
+Deploy requires successful validation, downloads the artifact, and uploads it
+to Azure without installing dependencies, rebuilding, or invoking Oryx.
+Only pushes to main and manual runs on main deploy. Pull requests validate
+without accessing the deployment secret or creating previews.
+
+Both jobs have 20-minute timeouts and read-only repository contents permissions.
+New runs cancel outdated runs for the same branch or pull request. Validation
+needs no deployment or Turborepo remote cache credentials; Deploy uses the
+existing Azure deployment-token secret.
+
+The superseded CI and Azure workflows and preview cleanup job are removed.
+Any preview environments created by the old workflow may need one-time cleanup
+in the Azure portal under the Static Web App's Environments page. This change
+does not delete those environments automatically.
+
+View results under **Actions ? Validate and Deploy**, or the pull request's
+**Checks** tab. Manual runs are available through **Run workflow**. The job
+names are **Validate** and **Deploy**. Review branch-protection required checks
+if they reference old workflow/job names; require Validate rather than Deploy,
+which is intentionally skipped on pull requests.
 
 ## Testing
 
