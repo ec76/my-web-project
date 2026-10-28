@@ -4,6 +4,6 @@
     "outDir": "dist",
     "strictNullChecks": true
   },
-  "include": ["src"],
+  "include": ["src", "vitest.config.mts"],
   "exclude": ["node_modules", "dist"]
 }

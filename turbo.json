@@ -2,6 +2,24 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "tasks": {
+    "test:inputs": {
+      "dependsOn": ["^test:inputs"],
+      "inputs": ["$TURBO_DEFAULT$", "!coverage/**"]
+    },
+    "test": {
+      "dependsOn": ["test:inputs"],
+      "inputs": ["$TURBO_DEFAULT$", "!coverage/**"],
+      "outputs": []
+    },
+    "test:coverage": {
+      "dependsOn": ["test:inputs"],
+      "inputs": ["$TURBO_DEFAULT$", "!coverage/**"],
+      "outputs": ["coverage/**"]
+    },
+    "test:watch": {
+      "cache": false,
+      "persistent": true
+    },
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
