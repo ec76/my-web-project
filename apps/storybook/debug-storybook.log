@@ -1,0 +1,26 @@
+[11:26:54.494] [INFO] storybook v10.6.5
+[11:26:54.763] [DEBUG] Command "yarn.cmd" not found, trying next variation...
+[11:26:54.832] [DEBUG] Command "yarn.exe" not found, trying next variation...
+[11:26:54.911] [DEBUG] Command "yarn.ps1" not found, trying next variation...
+[11:26:55.053] [DEBUG] Command "pnpm.cmd" not found, trying next variation...
+[11:26:55.128] [DEBUG] Command "pnpm.exe" not found, trying next variation...
+[11:26:55.215] [DEBUG] Command "pnpm.ps1" not found, trying next variation...
+[11:26:55.949] [DEBUG] Getting package.json info for C:/Users/ericc/OneDrive/Desktop/Code/Project 1/my-web-project/apps/storybook/package.json...
+[11:26:56.834] [DEBUG] Could not determine @babel/preset-env version in use. In case of runtime errors with @babel/preset-env, you may need to set the babelRemoveBugfixes feature flag in your `main.ts` file.
+[11:26:57.463] [INFO] Starting...
+[11:26:57.674] [ERROR] [38;2;241;97;97mError: Build failed with 3 errors:
+error: Cannot read directory "../../../../../../..": Access is denied.
+error: Could not resolve "C:\\Users\\ericc\\OneDrive\\Desktop\\Code\\Project 1\\my-web-project\\apps\\storybook\\node_modules\\.cache\\storybook\\10.6.5\\e32bb427adf737087a4b39f7f748149d183fe2f95231b7a3c1529f5231d4c8d3\\sb-manager\\docs-1\\manager-bundle.js"
+error: Could not resolve "C:\\Users\\ericc\\OneDrive\\Desktop\\Code\\Project 1\\my-web-project\\apps\\storybook\\node_modules\\.cache\\storybook\\10.6.5\\e32bb427adf737087a4b39f7f748149d183fe2f95231b7a3c1529f5231d4c8d3\\sb-manager\\storybook-core-server-presets-0\\common-manager-bundle.js"[39m
+    at failureErrorWithLog (C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:1752:15)
+    at C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:1211:25
+    at runOnEndCallbacks (C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:1592:45)
+    at buildResponseToResult (C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:1209:7)
+    at C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:1236:16
+    at responseCallbacks.<computed> (C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:886:9)
+    at handleIncomingPacket (C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:941:12)
+    at Socket.readFromStdout (C:\Users\ericc\OneDrive\Desktop\Code\Project 1\my-web-project\node_modules\esbuild\lib\main.js:864:7)
+    at Socket.emit (node:events:514:28)
+    at addChunk (node:internal/streams/readable:569:12)
+[11:26:57.678] [WARN] Broken build, fix the error above.
+You may need to refresh the browser.
