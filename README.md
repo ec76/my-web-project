@@ -35,6 +35,51 @@ npm run build-storybook
 Storybook runs at [http://localhost:6006](http://localhost:6006). The static
 build is written to `apps/storybook/storybook-static`.
 
+## Azure Static Web Apps Free
+
+The website uses Next.js `output: "export"` and retains
+`transpilePackages: ["@repo/ui"]` for the shared Material UI components.
+Build the deployable static site from the repository root:
+
+```sh
+npm run build:azure
+```
+
+This runs the web build and required workspace dependencies through Turborepo,
+without building Storybook. The entry point is `apps/web/out/index.html`.
+Turborepo caches the workspace-relative `out/**` output; Git and Prettier
+ignore generated `out` directories. The existing `npm run build` command also
+produces the static export, so CI's website build validates this output mode.
+
+Use these deployment settings when configuring Azure Static Web Apps:
+
+| Setting                  | Value                   |
+| ------------------------ | ----------------------- |
+| Plan                     | Free                    |
+| Build preset             | Custom                  |
+| App location             | `/`                     |
+| API location             | Empty                   |
+| Output location          | `apps/web/out`          |
+| Custom app build command | `npm run build:azure`   |
+| Static export deployment | `IS_STATIC_EXPORT=true` |
+
+Set `IS_STATIC_EXPORT: "true"` in the environment of the Azure deployment
+workflow's build/deploy step. Use the project's supported Node.js 24 and
+the npm version specified in the root `package.json` for the build environment.
+This repository change does not create Azure resources, deployment workflows,
+or credentials. See Microsoft's
+[static Next.js deployment guide](https://learn.microsoft.com/en-us/azure/static-web-apps/deploy-nextjs-static-export).
+
+The current app has no static-export blockers: no request-time APIs, Server
+Actions, dynamic routes, middleware, or server-dependent redirects. The shared
+theme and components render at build time. There is no `next/image` usage, so
+no image configuration is needed. If added later, use a custom image loader
+or unoptimized images rather than the default server optimizer. Features
+requiring a running Next.js server need a different hosting strategy; see
+[Next.js static export limitations](https://nextjs.org/docs/app/guides/static-exports#unsupported-features).
+For a production preview, serve `apps/web/out` with a static file server;
+`npm run start --workspace=web` uses `next start` and does not serve exports.
+
 ## Formatting
 
 Prettier is installed at the repository root with an exact version. All

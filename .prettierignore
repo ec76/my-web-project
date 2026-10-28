@@ -2,6 +2,7 @@
 **/.next/**
 **/.turbo/**
 **/dist/**
+**/out/**
 **/coverage/**
 **/storybook-static/**
 **/next-env.d.ts

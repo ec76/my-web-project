@@ -6,6 +6,7 @@
     "test:watch": "turbo run test:watch",
     "test:coverage": "turbo run test:coverage",
     "build": "turbo run build",
+    "build:azure": "turbo run build --filter=web...",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write .",
