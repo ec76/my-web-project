@@ -63,6 +63,9 @@ export default function Home() {
               description="Add pages for the things you care about, and keep reusable building blocks in one shared home."
             />
           </Box>
+          <Typography variant="body2" color="text.secondary">
+            Deployment pipeline verified
+          </Typography>
         </Stack>
       </Container>
     </Box>
