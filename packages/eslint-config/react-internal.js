@@ -1,4 +1,5 @@
 import pluginReactHooks from "eslint-plugin-react-hooks";
+import eslintConfigPrettier from "eslint-config-prettier";
 import globals from "globals";
 import { config as baseConfig } from "./base.js";
 
@@ -17,4 +18,5 @@ export const config = [
     },
   },
   pluginReactHooks.configs.flat.recommended,
+  eslintConfigPrettier,
 ];

@@ -11,7 +11,6 @@ import onlyWarn from "eslint-plugin-only-warn";
  * */
 export const config = [
   js.configs.recommended,
-  eslintConfigPrettier,
   {
     languageOptions: {
       parser: babelParser,
@@ -37,4 +36,5 @@ export const config = [
   {
     ignores: ["dist/**"],
   },
+  eslintConfigPrettier,
 ];

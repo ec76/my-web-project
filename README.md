@@ -35,11 +35,34 @@ npm run build-storybook
 Storybook runs at [http://localhost:6006](http://localhost:6006). The static
 build is written to `apps/storybook/storybook-static`.
 
+## Formatting
+
+Prettier is installed at the repository root with an exact version. All
+workspaces use `.prettierrc.json`: Prettier defaults with LF line endings.
+Generated dependencies, build output, caches, coverage, and `next-env.d.ts`
+are excluded through `.prettierignore`.
+
+```sh
+npm run format
+npm run format:check
+```
+
+`format` rewrites files; `format:check` reports differences without changing
+files. Source, stories, tests, and GitHub workflows are all checked.
+Prettier runs separately from ESLint; the shared ESLint configurations apply
+`eslint-config-prettier` last to disable conflicting formatting rules while
+preserving code-quality checks.
+
+In VS Code, install the recommended **Prettier - Code formatter** extension
+(`esbenp.prettier-vscode`) from the Extensions view's workspace recommendations.
+Shared `.vscode` settings enable format on save, require a Prettier config,
+and select Prettier for the project's supported languages.
+
 ## Continuous integration
 
 The `CI` GitHub Actions workflow runs on pushes to `main`, pull requests
 targeting `main`, and manual runs. Its `Validate` job installs dependencies
-with `npm ci`, then runs lint, TypeScript checks, unit tests once, the Next.js
+with `npm ci`, then checks formatting, lint, TypeScript, unit tests once, the Next.js
 build, and the separate Storybook build using the root scripts.
 
 CI uses Node.js 24, matching the supported `>=24` engine range, and installs

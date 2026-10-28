@@ -1,4 +1,5 @@
 import { globalIgnores } from "eslint/config";
+import eslintConfigPrettier from "eslint-config-prettier";
 import pluginReactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 import pluginNext from "@next/eslint-plugin-next";
@@ -36,4 +37,5 @@ export const nextJsConfig = [
     },
   },
   pluginReactHooks.configs.flat.recommended,
+  eslintConfigPrettier,
 ];
