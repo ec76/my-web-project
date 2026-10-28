@@ -24,6 +24,13 @@ export const Default: Story = {
   },
 };
 
+export const WithoutEyebrow: Story = {
+  args: {
+    title: "A thoughtful starting point",
+    description: "A card with a heading and description, without a label.",
+  },
+};
+
 export const LongContent: Story = {
   args: {
     eyebrow: "IN DEPTH",

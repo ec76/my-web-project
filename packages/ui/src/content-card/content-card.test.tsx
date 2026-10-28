@@ -4,6 +4,18 @@ import { renderWithProviders } from "../test/render-with-providers";
 import { ContentCard } from "./content-card";
 
 describe("ContentCard", () => {
+  it("renders without an eyebrow and removes a previously supplied label", () => {
+    const { rerender } = renderWithProviders(
+      <ContentCard eyebrow="DRAFT" title="Project" description="An update" />,
+    );
+
+    rerender(<ContentCard title="Project" description="An update" />);
+
+    expect(screen.getByRole("heading", { name: "Project" })).toBeVisible();
+    expect(screen.getByText("An update")).toBeVisible();
+    expect(screen.queryByText("DRAFT")).not.toBeInTheDocument();
+  });
+
   it("renders the supplied heading, label, and description in an article", () => {
     renderWithProviders(
       <ContentCard

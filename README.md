@@ -55,8 +55,8 @@ Use `renderWithProviders` from `packages/ui/src/test/render-with-providers.tsx`
 to render with the same Material UI theme/provider as the website and Storybook.
 Prefer accessible queries; for interactive components, create
 `const user = userEvent.setup()` using `@testing-library/user-event` and await
-user actions. ContentCard currently has three required text props and no links
-or callbacks, so its tests cover rendering and prop updates.
+user actions. ContentCard has required title and description props, an optional
+eyebrow, and no links or callbacks. Its tests cover rendering and prop updates.
 
 Coverage prints a text summary and writes an HTML report. Open
 `packages/ui/coverage/index.html` in your browser after `npm run test:coverage`.

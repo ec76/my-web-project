@@ -1,7 +1,7 @@
 import { Card, CardContent, Chip, Stack, Typography } from "@mui/material";
 
 export interface ContentCardProps {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
 }
@@ -27,12 +27,14 @@ export function ContentCard({ eyebrow, title, description }: ContentCardProps) {
         sx={{ p: { xs: 3, sm: 4 }, "&:last-child": { pb: { xs: 3, sm: 4 } } }}
       >
         <Stack spacing={2} sx={{ alignItems: "flex-start" }}>
-          <Chip
-            label={eyebrow}
-            color="primary"
-            size="small"
-            variant="outlined"
-          />
+          {eyebrow && (
+            <Chip
+              label={eyebrow}
+              color="primary"
+              size="small"
+              variant="outlined"
+            />
+          )}
           <Typography component="h2" variant="h5" sx={{ fontWeight: 650 }}>
             {title}
           </Typography>
