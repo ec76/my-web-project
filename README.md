@@ -51,23 +51,34 @@ Turborepo caches the workspace-relative `out/**` output; Git and Prettier
 ignore generated `out` directories. The existing `npm run build` command also
 produces the static export, so CI's website build validates this output mode.
 
-Use these deployment settings when configuring Azure Static Web Apps:
+The deployment workflow builds on the GitHub runner using Node.js 24 and
+npm 11.19.1, runs `npm ci` and `npm run build:azure`, and verifies the exported
+entry point. Azure uploads these prebuilt files without an Oryx app build:
 
 | Setting                  | Value                   |
 | ------------------------ | ----------------------- |
 | Plan                     | Free                    |
 | Build preset             | Custom                  |
-| App location             | `/`                     |
+| App location             | `apps/web/out`          |
 | API location             | Empty                   |
-| Output location          | `apps/web/out`          |
-| Custom app build command | `npm run build:azure`   |
+| Output location          | Empty                   |
+| Skip app build           | `true`                  |
 | Static export deployment | `IS_STATIC_EXPORT=true` |
 
-Set `IS_STATIC_EXPORT: "true"` in the environment of the Azure deployment
-workflow's build/deploy step. Use the project's supported Node.js 24 and
-the npm version specified in the root `package.json` for the build environment.
-This repository change does not create Azure resources, deployment workflows,
-or credentials. See Microsoft's
+The upload step retains `IS_STATIC_EXPORT: "true"`. Its app build command is
+omitted because the runner has already built the site. OIDC helper steps are
+no longer needed; upload and PR preview cleanup use the existing deployment-token
+secret. If Azure disables deployment-token authentication, select the deployment
+token policy under the Static Web App's **Settings > Configuration > Deployment
+configuration**. If the GitHub secret is missing, add the deployment token under
+the repository's **Settings > Secrets and variables > Actions**, named
+`AZURE_STATIC_WEB_APPS_API_TOKEN_VICTORIOUS_BUSH_002C17210`. Do not put the token
+in source code or chat.
+
+There is currently no `staticwebapp.config.json`. If needed, place it in
+`apps/web/public/staticwebapp.config.json` so Next.js includes it at the root of
+`apps/web/out`. No Azure resources or credentials are created by these changes.
+See Microsoft's
 [static Next.js deployment guide](https://learn.microsoft.com/en-us/azure/static-web-apps/deploy-nextjs-static-export).
 
 The current app has no static-export blockers: no request-time APIs, Server
