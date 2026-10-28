@@ -35,6 +35,24 @@ npm run build-storybook
 Storybook runs at [http://localhost:6006](http://localhost:6006). The static
 build is written to `apps/storybook/storybook-static`.
 
+## Continuous integration
+
+The `CI` GitHub Actions workflow runs on pushes to `main`, pull requests
+targeting `main`, and manual runs. Its `Validate` job installs dependencies
+with `npm ci`, then runs lint, TypeScript checks, unit tests once, the Next.js
+build, and the separate Storybook build using the root scripts.
+
+CI uses Node.js 24, matching the supported `>=24` engine range, and installs
+the npm version specified in `package.json` under `devEngines.packageManager`
+(currently 11.19.1). npm downloads are cached using the root lockfile.
+The job has a 20-minute timeout and read-only repository contents permissions.
+New runs cancel outdated runs for the same branch or pull request. No deployment
+or Turborepo remote cache credentials are required.
+
+View results in the repository's **Actions → CI → Validate** job, or in a pull
+request's **Checks** tab. Expand a named step to inspect its logs. To run CI
+manually, choose **Actions → CI → Run workflow** on GitHub.
+
 ## Testing
 
 Run unit and React component tests from the repository root:
