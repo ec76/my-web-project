@@ -679,6 +679,10 @@ of `npm`.
 
 ## Where to add code
 
+Shared header/footer usage, link adapters, and accessibility behavior are documented
+in [packages/ui/README.md](packages/ui/README.md). Called Together supplies its
+own navigation and copyright in `apps/called-together/app/site-layout.tsx`.
+
 - Add experimentation/test pages, layouts, and app-specific UI in `apps/web/app`.
 - Add ministry pages, content, components, and theme in `apps/called-together/app`.
 - Add reusable React components, the shared Material UI theme, and its provider
