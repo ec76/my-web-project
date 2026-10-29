@@ -1,0 +1,11 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "build/sql",
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["server/database.ts", "operators/verify-sql.ts"]
+}

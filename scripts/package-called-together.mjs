@@ -1,4 +1,5 @@
 import { access, mkdir, rm } from "node:fs/promises";
+import { nodeFileTrace } from "@vercel/nft";
 import path from "node:path";
 import {
   application,
@@ -14,6 +15,16 @@ const source = path.join(repository, application);
 const standalone = path.join(source, ".next/standalone");
 await access(path.join(standalone, entryPoint));
 await access(path.join(source, ".next/static"));
+const sqlEntry = path.join(source, "build/sql/operators/verify-sql.js");
+await access(sqlEntry);
+// This private command is not reachable from a Next route, so trace it explicitly.
+const sqlTrace = await nodeFileTrace([sqlEntry], {
+  base: repository,
+  processCwd: source,
+  // NFT selects import/require per module; forcing both can trace the wrong
+  // branch of Azure SDK packages with conditional exports.
+  conditions: ["node", "react-server"],
+});
 
 // This is the only generated destination this script is allowed to replace.
 if (!isInside(repository, artifact) || artifact === repository) {
@@ -27,6 +38,12 @@ await rm(artifact, {
 });
 await mkdir(artifact, { recursive: true });
 await copyRuntime(standalone, artifact);
+for (const relative of sqlTrace.fileList) {
+  const file = path.resolve(repository, relative);
+  if (!isInside(repository, file))
+    throw new Error("SQL trace escaped the repository");
+  await copyRuntime(file, path.join(artifact, relative));
+}
 const runtimeApp = path.join(artifact, application);
 await copyRuntime(
   path.join(source, ".next/static"),
@@ -47,5 +64,6 @@ if (publicExists)
   );
 await auditArtifact(artifact);
 await access(path.join(artifact, entryPoint));
+await access(path.join(runtimeApp, "build/sql/operators/verify-sql.js"));
 console.log("Packaged artifacts/called-together");
 console.log(`Startup from artifact root: HOSTNAME=0.0.0.0 node ${entryPoint}`);

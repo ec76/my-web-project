@@ -230,6 +230,168 @@ Local checks cannot establish that OIDC login, Azure role permissions, deploymen
 startup settings, or public readiness work. These require a live GitHub run on
 `main`; this documentation does not claim the target has been deployed.
 
+## Called Together: private Azure SQL connectivity
+
+SQL access lives only in `apps/called-together/server/database.ts`, marked
+`server-only`. Import it only from server code running in the Node.js runtime,
+never Client Components or Edge code. No route currently uses SQL: the homepage
+and `/api/health` remain independent of the database. Importing the module or
+building the app does not read SQL settings, authenticate, or open a connection.
+CI requires no SQL settings, Azure credentials, or database access.
+
+On first use, the module reads `SQL_SERVER` and `SQL_DATABASE` from the server
+environment. In App Service (`WEBSITE_INSTANCE_ID` / `WEBSITE_SITE_NAME`), it uses
+a direct, system-assigned `ManagedIdentityCredential`, without a client ID or
+client secret. Locally it uses `AzureCliCredential` with a 10-second CLI process
+timeout. These credentials are supplied through Tedious's supported
+[`token-credential` authentication](https://tediousjs.github.io/tedious/api-connection.html),
+which requests a token for each new physical connection. The application does
+not store a bearer token in the pool configuration; credential-library caching
+respects token expiry. The App Service runtime identity is separate from the
+OIDC identity used by GitHub deployment.
+
+Connections require TLS encryption with server certificate validation. The
+lazy pool has a maximum of 3 connections, minimum 0, and a 30-second idle timeout.
+Connection and query timeouts are 15 and 10 seconds, pool acquisition/creation
+timeouts are 20 seconds, and cancellation/destruction timeouts are 5 seconds.
+Concurrent callers share initialization; failed initialization closes and clears
+the failed pool so a later call can retry. The holder survives development module
+reloads. No SQL queries, schema migrations, tables, or additional database grants
+are added to request handlers.
+
+### Local operator verification
+
+Use Node.js 24 and npm 11.19.1. Copy `apps/called-together/.env.example` to
+`apps/called-together/.env.local` and replace the placeholders. The example is
+tracked; real environment files remain ignored. Do not prefix SQL settings with
+`NEXT_PUBLIC_`, put tokens/passwords in these files, or copy App Service managed
+identity endpoint/header settings to a developer machine.
+
+For this development target, the server is
+`sql-called-together-dev-ec76.database.windows.net` and the database is
+`sqldb-called-together-dev`. Log in to the database's Entra tenant with Azure CLI:
+
+```sh
+az login --tenant <sql-tenant-id>
+az account set --subscription <development-subscription-id>
+npm run verify:sql --workspace=called-together
+```
+
+Run npm from the repository root. It compiles the command and loads the app's
+`.env.local` (existing environment values take precedence). The logged-in user
+must already have an Entra database identity and permission to connect. Azure SQL
+must permit the developer's current public outbound IP, and local networking must
+allow SQL traffic on port 1433. The App Service outbound-IP firewall entries do
+not permit a developer's laptop automatically. Arrange local firewall access
+with the operator; this change adds no firewall rules or database permissions.
+
+### Verify the deployed App Service identity
+
+Open **SSH into the application's running App Service Linux container**, then run:
+
+```sh
+cd /home/site/wwwroot/apps/called-together
+node --conditions=react-server build/sql/operators/verify-sql.js
+```
+
+The compiled entry point uses the same database implementation as application
+server code. `--conditions=react-server` enables the Node resolution condition for
+the `server-only` marker; the command is private and is not an HTTP endpoint.
+It uses the container's `SQL_SERVER`, `SQL_DATABASE`, and managed identity
+environment, runs only `SELECT 1 AS ok`, closes its pool, prints
+`SQL verification succeeded: ok=1.`, and exits zero. Failures exit nonzero with
+sanitized configuration/authentication/network/timeout diagnostics. Raw driver
+errors, tokens, credential headers, and full connection settings are never printed.
+
+The configured runtime principal is `644d0c08-c23e-4c4f-bf2d-0b6cf382ca1d`, with
+database user `called-together-dev-ec76` (`EXTERNAL_USER`). This is a principal
+object ID, not a user-assigned identity client ID; do not pass it to the credential.
+No table permissions are required for this probe, and none are added here.
+**Cloud Shell, a GitHub runner, or the separate SCM/Kudu container does not verify
+the Web App application's managed identity.** Live database access remains
+unverified until the command succeeds in the running application container.
+
+Every Called Together build compiles the private operator and shared SQL module
+into `build/sql`. Packaging explicitly traces the compiled operator with
+`@vercel/nft` and adds its runtime dependencies to the existing standalone tree,
+since no Next route references it. Turbo caches the compiled output. The existing
+isolated artifact verifier checks local dependency resolution and invokes the
+packaged command **without SQL settings**, requiring a sanitized configuration
+failure before any network access. Existing homepage/assets/health checks remain
+in place. Mocked SQL tests run through `npm test`; they do not call Azure or SQL.
+Selective deployment conditions and Azure deployment authentication are unchanged.
+
+### MSAL Node advisory review (2026-10-29)
+
+**Verified installed dependency:** `npm explain @azure/msal-node` and `npm ls`
+report `@azure/msal-node@6.0.1`. This is within the affected range
+`>=5.0.0-beta.0 <7.1.0` for
+[GHSA-xcx6-jx8p-x3h5](https://github.com/advisories/GHSA-xcx6-jx8p-x3h5).
+The advisory concerns the authorization-code flow and `acquireTokenByCode`;
+MSAL Node 7.1.0 and later contain the patch. The installed package remains
+affected even though the configured SQL credential flows differ from that API.
+
+The installed paths are:
+
+```text
+called-together -> @azure/identity@4.14.0 -> @azure/msal-node@6.0.1
+called-together -> mssql@12.7.13 -> tedious@20.3.8
+                -> @azure/identity@4.14.0 -> @azure/msal-node@6.0.1
+```
+
+`@types/mssql@12.3.0` also references the same deduplicated Tedious installation
+as a development dependency. Removing that type dependency would not remove
+either runtime path above.
+
+**Verified update availability:** npm registry metadata on the review date shows
+the installed parents are their current stable `latest` releases:
+
+| Parent            | Stable version | Declared next dependency        |
+| ----------------- | -------------- | ------------------------------- |
+| `mssql`           | 12.7.13        | `tedious: ^19.2.2 \|\| ^20.0.0` |
+| `tedious`         | 20.3.8         | `@azure/identity: ^4.13.1`      |
+| `@azure/identity` | 4.14.0         | `@azure/msal-node: ^6.0.0`      |
+
+MSAL Node's latest release is 7.1.2, but Azure Identity's declared `^6.0.0` range
+excludes it; the newest published MSAL 6 release is the installed 6.0.1. The
+available Azure Identity 4.15.0-beta.1 also declares `^6.0.0` and is a prerelease,
+so it supplies no patched-parent option. No compatible supported parent update
+was found. No dependencies were changed for this review, no `npm audit fix --force`
+was run, and no MSAL major-version override is applied.
+
+**Verified configured source paths:** `server/database.ts` explicitly selects
+`ManagedIdentityCredential` in App Service or `AzureCliCredential` locally and
+passes the credential through Tedious's `token-credential` authentication.
+Installed Tedious calls `credential.getToken` on connection authentication.
+Source inspection of both Azure Identity's ESM and CommonJS implementations shows:
+
+- Managed identity **does use MSAL Node**: Azure Identity's
+  `credentials/managedIdentityCredential/index.js` invokes
+  `ManagedIdentityApplication.acquireToken`. In installed
+  `@azure/msal-node/lib/msal-node.cjs`, that path uses
+  `acquireTokenFromManagedIdentity` and `sendManagedIdentityTokenRequest`, reaching
+  the selected managed identity endpoint. It does not route through
+  `acquireTokenByCode` in the inspected path.
+- `credentials/azureCliCredential.js` obtains tokens by executing
+  `az account get-access-token`; this wrapper does not call the installed Node
+  MSAL authorization-code API.
+- The installed Azure Identity authorization-code path exists separately:
+  `AuthorizationCodeCredential` calls `getTokenByAuthorizationCode` in
+  `msal/nodeFlows/msalClient.js`, which calls `acquireTokenByCode`. Application
+  source does not instantiate that credential or call those methods. There is
+  no default credential chain falling back to that credential in our SQL module.
+
+**Assessment and limits:** static source review found no route from our configured
+SQL credential flows to the affected authorization-code API. This is narrower
+than claiming the dependency is fixed or the entire application is proven
+non-exploitable. Live App Service authentication was not exercised during this
+review; the runtime identity environment is assumed to match its documented
+configuration. Azure CLI's own installation, login flow, and dependencies were
+not audited. Reassess if credentials, SDK versions, or authorization-code features
+change. Follow up when a supported Azure Identity release permits patched MSAL,
+then rerun dependency/audit inspection, SQL tests, builds, packaging, and isolated
+artifact verification. Do not suppress the existing audit finding as resolved.
+
 ## Current Azure resources for apps/web
 
 The current web application deploys to Azure Static Web Apps Free. These existing

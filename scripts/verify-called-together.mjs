@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { access, cp, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -38,6 +38,54 @@ try {
   assert(
     isInside(isolated, require.resolve("next")),
     "Next must resolve inside the isolated artifact",
+  );
+  const sqlOperator = path.join(
+    isolated,
+    application,
+    "build/sql/operators/verify-sql.js",
+  );
+  await access(sqlOperator);
+  const sqlRequire = createRequire(sqlOperator);
+  for (const name of ["mssql", "@azure/identity"]) {
+    assert(
+      isInside(isolated, sqlRequire.resolve(name)),
+      `${name} must resolve inside the isolated SQL artifact`,
+    );
+  }
+  assert(
+    isInside(
+      isolated,
+      createRequire(sqlRequire.resolve("mssql")).resolve("tedious"),
+    ),
+  );
+  // With no SQL settings, loading the real compiled command must fail safely,
+  // before contacting Azure or SQL. This is a packaging check, not a DB probe.
+  const sqlCheck = spawnSync(
+    process.execPath,
+    ["--conditions=react-server", sqlOperator],
+    {
+      cwd: isolated,
+      env: {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        WINDIR: process.env.WINDIR,
+        NODE_ENV: "production",
+      },
+      windowsHide: true,
+      encoding: "utf8",
+      timeout: 20000,
+    },
+  );
+  assert.equal(sqlCheck.error, undefined);
+  assert.equal(
+    sqlCheck.status,
+    1,
+    "Unconfigured SQL operator must exit nonzero without connecting",
+  );
+  assert.equal(sqlCheck.stdout, "");
+  assert.equal(
+    sqlCheck.stderr.trim(),
+    "SQL verification failed: set valid SQL_SERVER and SQL_DATABASE settings.",
   );
 
   const reservation = createServer();
@@ -185,7 +233,7 @@ try {
     },
   );
   console.log(
-    `Isolated production smoke test passed: homepage, ${new Set(assets).size} JS/CSS assets, public assets when present, and request-time health endpoint.`,
+    `Isolated production smoke test passed: homepage, ${new Set(assets).size} JS/CSS assets, public assets when present, request-time health endpoint, and private SQL operator/dependencies (no database access).`,
   );
 } catch (error) {
   console.error(output);
