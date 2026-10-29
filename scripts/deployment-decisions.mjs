@@ -1,8 +1,8 @@
 export const applications = {
-  test: { package: "web", job: "Deploy" },
+  test: { package: "web", jobs: ["Deploy Test", "Deploy"] },
   "called-together": {
     package: "called-together",
-    job: "Deploy Called Together",
+    jobs: ["Deploy Called Together"],
   },
 };
 
@@ -162,8 +162,8 @@ export async function discoverBaselines({
             for (const job of result.jobs) {
               if (job.status !== "completed" || job.conclusion !== "success")
                 continue;
-              const app = Object.keys(applications).find(
-                (key) => applications[key].job === job.name,
+              const app = Object.keys(applications).find((key) =>
+                applications[key].jobs.includes(job.name),
               );
               if (!app) continue;
               // Some rerun responses include jobs carried forward from earlier
