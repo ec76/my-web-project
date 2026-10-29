@@ -165,35 +165,70 @@ failure. It does not rely on the checkout's `node_modules`. It is an HTTP smoke
 test, not a browser hydration or visual test.
 
 The Linux `Validate` job builds, packages, and smoke-tests Called Together using
-the pinned Node/npm setup. It archives the exact smoke-tested package as
-`called-together.tar.gz`, retaining hidden files, directory layout, permissions,
-and any symlinks through the artifact handoff. Deployment downloads by immutable
-artifact ID, verifies SHA-256, and extracts with permissions preserved. It does
-not check out source, rebuild, or reinstall dependencies.
+the pinned Node/npm setup. It then archives the exact smoke-tested folder with
+`tar -czf ... -C artifacts/called-together .` and uploads `called-together.tar.gz`
+with `actions/upload-artifact@v7` using `archive: false`. Tar retains hidden files,
+directory layout, symlinks, and permissions during transfer between jobs. The
+packager already dereferences internal runtime links; tar does not dereference
+links or flatten the resulting package. This follows GitHub's
+[artifact permission guidance](https://github.com/actions/download-artifact#maintaining-file-permissions).
 
-The job uses `azure/login@v3` with the existing repository **variables**
-`CALLED_TOGETHER_AZURE_CLIENT_ID`, `CALLED_TOGETHER_AZURE_TENANT_ID`, and
-`CALLED_TOGETHER_AZURE_SUBSCRIPTION_ID`. Only this job has `id-token: write`.
-It has no GitHub environment: Azure trusts the branch subject
-`repo:ec76/starweave:ref:refs/heads/main`. Preserve that subject when changing
-the workflow. No publish profile, client secret, or Static Web App token is
-used by this job.
+`Deploy Called Together` downloads by the immutable artifact ID from Validate
+using `actions/download-artifact@v8`, checks the archive SHA-256 against the
+validation job's output, and extracts with permissions preserved. It verifies
+the nested server, static directory, and Next.js runtime exist. It does not check
+out source, reinstall dependencies, or rebuild. It uses `azure/login@v3` with
+these existing GitHub repository **variables**, not secrets:
 
-Before uploading with `azure/webapps-deploy@v3`, the job sets
-`SCM_DO_BUILD_DURING_DEPLOYMENT=false` and `ENABLE_ORYX_BUILD=false`, suppressing
-app-setting output, and supplies the exact `startup-command` above. After upload,
-18 bounded attempts check `/api/health` for successful JSON with `status: "ok"`
-and the homepage for a successful response containing `Called Together`.
-Each request has a 5-second connection timeout and a 10-second total timeout,
-with 5 seconds between failed attempts and an 8-minute step timeout. Failure
-fails the deployment job and does not automatically roll back the app.
+- `CALLED_TOGETHER_AZURE_CLIENT_ID`
+- `CALLED_TOGETHER_AZURE_TENANT_ID`
+- `CALLED_TOGETHER_AZURE_SUBSCRIPTION_ID`
 
-If login fails, check the three variables, OIDC subject, and Azure role permissions.
-The identity must be able to deploy content and update this app's settings/startup
-command. If startup or readiness fails, inspect App Service **Log stream** and
-deployment logs, confirm Node 24 LTS on Linux, the nested server path, Azure's
-`PORT`, and both remote-build settings. Public GitHub-runner checks also require
-the site to be reachable without authentication or blocking access restrictions.
+Only this job receives `contents: read` and `id-token: write`. It has no GitHub
+environment because the configured Azure federated subject is
+`repo:ec76/starweave:ref:refs/heads/main`. Adding an environment would change that
+subject and require a matching Azure trust configuration. See
+[Azure Login's OIDC guidance](https://github.com/Azure/login#login-with-openid-connect-oidc-recommended).
+
+The job explicitly sets `SCM_DO_BUILD_DURING_DEPLOYMENT=false` and
+`ENABLE_ORYX_BUILD=false` on this Web App, with setting values suppressed from
+logs, then deploys the extracted folder using `azure/webapps-deploy@v3`.
+Its `startup-command` input sets the exact Linux command above. No publish
+profile, client secret, or Static Web App token is used by this job. The
+existing Static Web App job retains its own token and `web-static` artifact.
+
+After deployment, up to 18 attempts check both `/api/health` for successful JSON
+containing `status: "ok"` and `/` for a successful response containing
+`Called Together`. Each HTTP request has a 5-second connection timeout and
+10-second total timeout, with 5 seconds between failed attempts. The verification
+step has an 8-minute ceiling and fails the deployment job if readiness never
+passes. A failed verification does not automatically roll back the deployed app.
+
+### Called Together deployment troubleshooting
+
+- **Login fails:** check all three repository variables, the main-branch run,
+  the job's `id-token: write`, and the exact federated subject above. Do not
+  assign a GitHub environment to this job with the current branch trust.
+- **Authorization fails:** the existing identity needs permission on
+  `called-together-dev-ec76` in `rg-called-together-dev` to deploy content and
+  update app settings/startup configuration. Check its Azure role assignment;
+  no role or identity is created by this workflow.
+- **Missing artifact or checksum mismatch:** inspect Validate's packaging,
+  smoke-test, archive, and upload steps. Rerun the complete workflow if its
+  artifact has expired. The deployment job deliberately has no build fallback.
+- **Startup fails or readiness times out:** inspect App Service **Log stream**
+  and deployment logs. Confirm Node 24 LTS on Linux, the nested
+  `apps/called-together/server.js` under `/home/site/wwwroot`, the configured
+  startup command, and both remote-build settings set to false. Do not replace
+  Azure's `PORT` with a fixed port or bind only to localhost.
+- **Health passes but homepage fails:** inspect the server logs and confirm
+  the deployment retained `.next`, its static assets, and runtime dependencies.
+  App Service access restrictions or authentication can also block the public
+  GitHub-runner verification requests.
+
+Local checks cannot establish that OIDC login, Azure role permissions, deployment,
+startup settings, or public readiness work. These require a live GitHub run on
+`main`; this documentation does not claim the target has been deployed.
 
 ## Current Azure resources for apps/web
 
