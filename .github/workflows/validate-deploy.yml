@@ -19,6 +19,9 @@ jobs:
     name: Validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      called-together-artifact-id: ${{ steps.upload-called-together.outputs.artifact-id }}
+      called-together-sha256: ${{ steps.archive-called-together.outputs.sha256 }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -62,6 +65,18 @@ jobs:
         run: npm run package:called-together
       - name: Smoke-test isolated Called Together artifact
         run: npm run verify:called-together
+      - name: Archive smoke-tested Called Together package
+        id: archive-called-together
+        run: |
+          tar -czf "$RUNNER_TEMP/called-together.tar.gz" -C artifacts/called-together .
+          echo "sha256=$(sha256sum "$RUNNER_TEMP/called-together.tar.gz" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Upload Called Together archive
+        id: upload-called-together
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ runner.temp }}/called-together.tar.gz
+          archive: false
+          if-no-files-found: error
       - name: Upload website artifact
         uses: actions/upload-artifact@v7
         with:
@@ -95,3 +110,72 @@ jobs:
           api_location: ""
           output_location: ""
           skip_app_build: true
+
+  deploy-called-together:
+    name: Deploy Called Together
+    needs: validate
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # No GitHub environment: Azure trusts the main-branch OIDC subject.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download validated Called Together archive
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.validate.outputs.called-together-artifact-id }}
+          path: ${{ runner.temp }}/called-together-download
+          merge-multiple: true
+      - name: Verify and extract Called Together archive
+        env:
+          EXPECTED_SHA256: ${{ needs.validate.outputs.called-together-sha256 }}
+        run: |
+          cd "$RUNNER_TEMP/called-together-download"
+          printf '%s  called-together.tar.gz\n' "$EXPECTED_SHA256" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/called-together-deploy"
+          tar -xzf called-together.tar.gz --same-permissions --no-same-owner -C "$RUNNER_TEMP/called-together-deploy"
+          test -f "$RUNNER_TEMP/called-together-deploy/apps/called-together/server.js"
+          test -d "$RUNNER_TEMP/called-together-deploy/apps/called-together/.next/static"
+          test -d "$RUNNER_TEMP/called-together-deploy/node_modules/next"
+      - name: Log in to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.CALLED_TOGETHER_AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.CALLED_TOGETHER_AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.CALLED_TOGETHER_AZURE_SUBSCRIPTION_ID }}
+      - name: Disable App Service remote builds for the prebuilt package
+        run: |
+          az webapp config appsettings set \
+            --name called-together-dev-ec76 \
+            --resource-group rg-called-together-dev \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=false ENABLE_ORYX_BUILD=false \
+            --output none
+      - name: Deploy Called Together standalone server
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: called-together-dev-ec76
+          resource-group-name: rg-called-together-dev
+          package: ${{ runner.temp }}/called-together-deploy
+          startup-command: HOSTNAME=0.0.0.0 node apps/called-together/server.js
+      - name: Verify live Called Together health and homepage
+        timeout-minutes: 8
+        env:
+          SITE_URL: https://called-together-dev-ec76-gyfufcfwg9etchgs.centralus-01.azurewebsites.net
+        run: |
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \
+                "$SITE_URL/api/health" -o "$RUNNER_TEMP/called-together-health.json" \
+              && jq --exit-status '.status == "ok"' "$RUNNER_TEMP/called-together-health.json" > /dev/null \
+              && curl --fail --silent --show-error --connect-timeout 5 --max-time 10 \
+                "$SITE_URL/" -o "$RUNNER_TEMP/called-together-home.html" \
+              && grep --fixed-strings --quiet 'Called Together' "$RUNNER_TEMP/called-together-home.html"; then
+              echo "Called Together health and homepage checks passed."
+              exit 0
+            fi
+            echo "Called Together is not ready (attempt $attempt/18)."
+            if [ "$attempt" -lt 18 ]; then sleep 5; fi
+          done
+          echo "::error::Called Together health or homepage verification failed. Check App Service startup and deployment logs."
+          exit 1
