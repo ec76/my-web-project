@@ -6,3 +6,4 @@
 **/coverage/**
 **/storybook-static/**
 **/next-env.d.ts
+/artifacts/**

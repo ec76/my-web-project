@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import { ThemeProvider } from "./theme-provider";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Called Together | Women in Spiritual Leadership",
