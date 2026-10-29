@@ -12,8 +12,8 @@ applications, Storybook, and shared Material UI components in `packages/ui`.
 
 Both websites may use `@repo/ui`. Called Together keeps its ministry content,
 components, and independent Material UI theme inside `apps/called-together`.
-It contains a homepage and a request-time health endpoint. It is prepared for
-App Service Linux, but its deployment is not enabled.
+It contains a homepage and a request-time health endpoint, with an App Service
+Linux deployment job in the existing workflow.
 
 Repository: [ec76/starweave](https://github.com/ec76/starweave).
 
@@ -73,10 +73,10 @@ Both transpile `@repo/ui`. The test website retains Next.js static export in
 `apps/web/out`; serve that directory with a static file server for production preview.
 Called Together uses Next.js standalone server output in
 `apps/called-together/.next/standalone` and requires a Node.js server.
-The existing Azure workflow deploys only `apps/web/out`; Called Together is
-validated but is not uploaded or deployed.
+The existing Azure workflow deploys `apps/web/out` to its Static Web App and
+the validated Called Together standalone package to its separate App Service.
 
-## Called Together: App Service Linux preparation
+## Called Together: App Service Linux deployment
 
 The intended target is separate from the existing Static Web App:
 
@@ -87,9 +87,11 @@ The intended target is separate from the existing Static Web App:
 | Runtime        | Node 24 LTS on Linux                                                             |
 | URL            | https://called-together-dev-ec76-gyfufcfwg9etchgs.centralus-01.azurewebsites.net |
 
-These are deployment instructions, not confirmation that Azure has been configured.
-No Called Together deployment step, credentials, or Azure resource changes are
-included. The existing `Validate` check name and `apps/web` deployment are preserved.
+The existing `Validate` check name and `apps/web` deployment are preserved.
+Called Together has a separate `Deploy Called Together` job that depends on
+successful validation, including packaging and the isolated production smoke test.
+Both deployment jobs run only for pushes to `main` or manual workflow runs on
+`main`. Pull requests validate and package without Azure login or deployment.
 
 From the repository root, using Node.js 24 and npm 11.19.1:
 
@@ -125,12 +127,12 @@ artifacts/called-together/
 
 Additional traced workspace files retain their generated relative paths.
 Generated artifacts are ignored by Git and Prettier. Do not deploy the repository,
-the static `out` directory, or only the nested application directory. A future
-deployment must upload the **contents** of `artifacts/called-together` to
+the static `out` directory, or only the nested application directory. The
+deployment uploads the **contents** of `artifacts/called-together` to
 `/home/site/wwwroot`, including dotfiles and `node_modules`, and preserve this
 layout. Build on Linux for the Linux target so any native dependencies match the
-runtime. Use the prebuilt package without an Azure/Oryx rebuild or runtime npm
-installation when deployment is enabled in separate work.
+runtime. Deployment uses the prebuilt package without an Azure/Oryx rebuild or
+runtime npm installation.
 
 The exact Azure Linux startup command, from `/home/site/wwwroot`, is:
 
@@ -162,9 +164,71 @@ The verifier stops the process and deletes its temporary directory on success or
 failure. It does not rely on the checkout's `node_modules`. It is an HTTP smoke
 test, not a browser hydration or visual test.
 
-The existing Linux `Validate` job builds, packages, and smoke-tests Called Together
-using the pinned Node/npm setup. It continues to upload only the `web-static`
-artifact; no Called Together upload or deployment is enabled.
+The Linux `Validate` job builds, packages, and smoke-tests Called Together using
+the pinned Node/npm setup. It then archives the exact smoke-tested folder with
+`tar -czf ... -C artifacts/called-together .` and uploads `called-together.tar.gz`
+with `actions/upload-artifact@v7` using `archive: false`. Tar retains hidden files,
+directory layout, symlinks, and permissions during transfer between jobs. The
+packager already dereferences internal runtime links; tar does not dereference
+links or flatten the resulting package. This follows GitHub's
+[artifact permission guidance](https://github.com/actions/download-artifact#maintaining-file-permissions).
+
+`Deploy Called Together` downloads by the immutable artifact ID from Validate
+using `actions/download-artifact@v8`, checks the archive SHA-256 against the
+validation job's output, and extracts with permissions preserved. It verifies
+the nested server, static directory, and Next.js runtime exist. It does not check
+out source, reinstall dependencies, or rebuild. It uses `azure/login@v3` with
+these existing GitHub repository **variables**, not secrets:
+
+- `CALLED_TOGETHER_AZURE_CLIENT_ID`
+- `CALLED_TOGETHER_AZURE_TENANT_ID`
+- `CALLED_TOGETHER_AZURE_SUBSCRIPTION_ID`
+
+Only this job receives `contents: read` and `id-token: write`. It has no GitHub
+environment because the configured Azure federated subject is
+`repo:ec76/starweave:ref:refs/heads/main`. Adding an environment would change that
+subject and require a matching Azure trust configuration. See
+[Azure Login's OIDC guidance](https://github.com/Azure/login#login-with-openid-connect-oidc-recommended).
+
+The job explicitly sets `SCM_DO_BUILD_DURING_DEPLOYMENT=false` and
+`ENABLE_ORYX_BUILD=false` on this Web App, with setting values suppressed from
+logs, then deploys the extracted folder using `azure/webapps-deploy@v3`.
+Its `startup-command` input sets the exact Linux command above. No publish
+profile, client secret, or Static Web App token is used by this job. The
+existing Static Web App job retains its own token and `web-static` artifact.
+
+After deployment, up to 18 attempts check both `/api/health` for successful JSON
+containing `status: "ok"` and `/` for a successful response containing
+`Called Together`. Each HTTP request has a 5-second connection timeout and
+10-second total timeout, with 5 seconds between failed attempts. The verification
+step has an 8-minute ceiling and fails the deployment job if readiness never
+passes. A failed verification does not automatically roll back the deployed app.
+
+### Called Together deployment troubleshooting
+
+- **Login fails:** check all three repository variables, the main-branch run,
+  the job's `id-token: write`, and the exact federated subject above. Do not
+  assign a GitHub environment to this job with the current branch trust.
+- **Authorization fails:** the existing identity needs permission on
+  `called-together-dev-ec76` in `rg-called-together-dev` to deploy content and
+  update app settings/startup configuration. Check its Azure role assignment;
+  no role or identity is created by this workflow.
+- **Missing artifact or checksum mismatch:** inspect Validate's packaging,
+  smoke-test, archive, and upload steps. Rerun the complete workflow if its
+  artifact has expired. The deployment job deliberately has no build fallback.
+- **Startup fails or readiness times out:** inspect App Service **Log stream**
+  and deployment logs. Confirm Node 24 LTS on Linux, the nested
+  `apps/called-together/server.js` under `/home/site/wwwroot`, the configured
+  startup command, and both remote-build settings set to false. Do not replace
+  Azure's `PORT` with a fixed port or bind only to localhost.
+- **Health passes but homepage fails:** inspect the server logs and confirm
+  the deployment retained `.next`, its static assets, and runtime dependencies.
+  App Service access restrictions or authentication can also block the public
+  GitHub-runner verification requests.
+
+Local checks cannot establish that OIDC login, Azure role permissions, deployment,
+startup settings, or public readiness work. These require a live GitHub run on
+`main`; this documentation does not claim the target has been deployed.
 
 ## Current Azure resources for apps/web
 
@@ -278,12 +342,12 @@ and select Prettier for the project's supported languages.
 
 The workflow in `.github/workflows/validate-deploy.yml` runs on pushes to
 `main`, pull requests targeting `main`, and manual runs. Its flow is
-**Validate -> Deploy**.
+**Validate -> Deploy + Deploy Called Together**, with independent deployment jobs.
 
 Work on a feature branch, push it, and open a pull request targeting `main`.
 Wait for Validate and review to pass, then merge. The resulting push to `main`
-runs Validate again; only after success does Deploy publish that exact build
-artifact. Open the site URL above to confirm the change is visible.
+runs Validate again; only after success do the deployment jobs publish their
+corresponding build artifacts. Open each site URL above to confirm visibility.
 
 Validate uses Node.js 24 and npm 11.19.1, bootstrapped from `runner.temp`
 before repository npm commands. It caches npm downloads using the root lockfile,
@@ -302,10 +366,11 @@ to Azure without installing dependencies, rebuilding, or invoking Oryx.
 Only pushes to main and manual runs on main deploy. Pull requests validate
 without accessing the deployment secret or creating previews.
 
-Both jobs have 20-minute timeouts and read-only repository contents permissions.
+All three jobs have 20-minute timeouts and read-only repository contents permissions.
 New runs cancel outdated runs for the same branch or pull request. Validation
 needs no deployment or Turborepo remote cache credentials; Deploy uses the
-existing Azure deployment-token secret.
+existing Azure deployment-token secret. Deploy Called Together uses OIDC with
+job-scoped `id-token: write` and the repository variables documented above.
 
 The superseded CI and Azure workflows and preview cleanup job are removed.
 Any preview environments created by the old workflow may need one-time cleanup
@@ -314,7 +379,7 @@ does not delete those environments automatically.
 
 View results under **Actions > Validate and Deploy**, or the pull request's
 **Checks** tab. Manual runs are available through **Run workflow**. The job
-names are **Validate** and **Deploy**. Review branch-protection required checks
+names are **Validate**, **Deploy**, and **Deploy Called Together**. Review branch-protection required checks
 if they reference old workflow/job names; require Validate rather than Deploy,
 which is intentionally skipped on pull requests.
 
