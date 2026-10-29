@@ -33,8 +33,8 @@ export function SiteFooter({
       sx={{
         borderTop: 1,
         borderColor: "divider",
-        bgcolor: "background.default",
-        py: 4,
+        bgcolor: "background.paper",
+        py: { xs: 6, md: 10 },
         overflowWrap: "anywhere",
         "& a:focus-visible": {
           outline: "2px solid",
@@ -69,7 +69,11 @@ export function SiteFooter({
             {hasIntroduction && (
               <Box sx={{ minWidth: 0 }}>
                 {brand != null && (
-                  <Typography component="div" sx={{ fontWeight: 700 }}>
+                  <Typography
+                    component="div"
+                    color="primary"
+                    sx={{ fontWeight: 600 }}
+                  >
                     {brand}
                   </Typography>
                 )}
@@ -102,7 +106,7 @@ export function SiteFooter({
                     <Typography
                       component="h2"
                       variant="subtitle1"
-                      sx={{ fontWeight: 700 }}
+                      sx={{ fontWeight: 600 }}
                     >
                       {group.heading}
                     </Typography>

@@ -36,3 +36,5 @@ static-export deployment configuration; an App Service migration is separate wor
   workflow validates PRs and deploys successful main builds using `web-static`.
   The runner builds; Azure uploads without Oryx. Keep token values out of logs
   and source. Do not commit, push, or change Azure resources unless requested.
+
+- Called Together visual work follows [the design standards](docs/called-together-design-system.md); keep brand tokens and content in apps/called-together.

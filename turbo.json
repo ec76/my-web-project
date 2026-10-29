@@ -46,6 +46,12 @@
       "persistent": true
     },
     "build-storybook": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/ui/src/**",
+        "$TURBO_ROOT$/apps/called-together/app/**",
+        "$TURBO_ROOT$/apps/called-together/tsconfig.json"
+      ],
       "outputs": ["storybook-static/**"]
     }
   }
