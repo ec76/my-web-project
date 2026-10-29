@@ -1,9 +1,18 @@
 # Starweave
 
 Starweave is a generic Turborepo monorepo for independent applications, each
-with its own pages and deployment. It currently includes a Next.js App Router
-application in `apps/web`, Storybook in `apps/storybook`, and shared Material UI
-components in `packages/ui`.
+with its own pages and deployment. It includes two independent Next.js App Router
+applications, Storybook, and shared Material UI components in `packages/ui`.
+
+| Application            | Workspace         | Purpose                               | Development port |
+| ---------------------- | ----------------- | ------------------------------------- | ---------------- |
+| `apps/web`             | `web`             | Existing experimentation/test website | 3000             |
+| `apps/called-together` | `called-together` | Called Together ministry website      | 3001             |
+| `apps/storybook`       | `@repo/storybook` | Shared component catalog              | 6006             |
+
+Both websites may use `@repo/ui`. Called Together keeps its ministry content,
+components, and independent Material UI theme inside `apps/called-together`.
+It currently contains only a homepage, with no server services or deployment.
 
 Repository: [ec76/starweave](https://github.com/ec76/starweave).
 
@@ -18,13 +27,16 @@ cd starweave
 npm ci
 ```
 
-Start the development server:
+Start both website development servers:
 
 ```sh
 npm run dev
 ```
 
-The site is available at [http://localhost:3000](http://localhost:3000).
+The test site is available at [http://localhost:3000](http://localhost:3000)
+and Called Together at [http://localhost:3001](http://localhost:3001).
+Start just one with `npm run dev:test` or `npm run dev:called-together`.
+Start the component catalog separately with `npm run storybook`.
 
 ## Commands
 
@@ -32,7 +44,10 @@ Run these from the repository root:
 
 ```sh
 npm run dev
+npm run dev:test
+npm run dev:called-together
 npm run build
+npm run build:called-together
 npm run lint
 npm run check-types
 npm run storybook
@@ -47,6 +62,15 @@ npm run test:coverage
 
 Storybook runs at [http://localhost:6006](http://localhost:6006). The static
 build is written to `apps/storybook/storybook-static`.
+
+`npm run build` builds both websites. Each can also build independently:
+`npm run build:azure` targets only `web` and its dependencies, while
+`npm run build:called-together` targets only `called-together` and its dependencies.
+Both preserve Next.js static export and transpile `@repo/ui`; their outputs are
+`apps/web/out` and `apps/called-together/out`, respectively. Serve the appropriate
+`out` directory with a static file server to preview a production export.
+The existing Azure workflow deploys only `apps/web/out`; Called Together is
+validated but is not uploaded or deployed.
 
 ## Current Azure resources for apps/web
 
@@ -170,8 +194,10 @@ artifact. Open the site URL above to confirm the change is visible.
 Validate uses Node.js 24 and npm 11.19.1, bootstrapped from `runner.temp`
 before repository npm commands. It caches npm downloads using the root lockfile,
 runs `npm ci`, formatting checks, lint, TypeScript checks, unit tests,
-`npm run build:azure`, and the Storybook build. The Azure build is also the
-website build, so the overlapping `npm run build` does not run again.
+`npm run build:azure`, `npm run build:called-together`, and the Storybook build.
+Lint and TypeScript checks include both websites through their workspace scripts.
+Each website builds independently, so the overlapping `npm run build` does not
+run again. Validation verifies both exported `index.html` files.
 
 Validate verifies `apps/web/out/index.html` and uploads the entire export as
 `web-static`, including hidden files and `staticwebapp.config.json` if used.
@@ -238,7 +264,8 @@ of `npm`.
 
 ## Where to add code
 
-- Add pages, layouts, and app-specific UI in `apps/web/app`.
+- Add experimentation/test pages, layouts, and app-specific UI in `apps/web/app`.
+- Add ministry pages, content, components, and theme in `apps/called-together/app`.
 - Add reusable React components, the shared Material UI theme, and its provider
   in `packages/ui/src`.
 - Add component stories beside their components in `packages/ui/src` using the
