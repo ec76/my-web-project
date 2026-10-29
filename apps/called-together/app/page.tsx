@@ -1,4 +1,6 @@
-import { Box, Button, Container, Stack, Typography } from "@mui/material";
+import { Box, Container, Stack, Typography } from "@mui/material";
+import { HeroSection } from "@repo/ui";
+import { heroContent } from "./home-content";
 import { tokens } from "./design-tokens";
 
 const introductions = [
@@ -21,33 +23,14 @@ const introductions = [
 
 export default function Home() {
   return (
-    <Container maxWidth="lg" sx={{ py: tokens.layout.section }}>
-      <Stack spacing={tokens.layout.section}>
-        <Stack
-          spacing={tokens.layout.stack}
-          sx={{ maxWidth: tokens.layout.reading }}
-        >
-          <Typography color="primary" sx={{ fontWeight: 600 }}>
-            Women in spiritual leadership
-          </Typography>
-          <Typography component="h1" variant="h1">
-            Called Together
-          </Typography>
-          <Typography sx={{ fontSize: "1.375rem" }}>
-            Supporting women called to spiritual leadership.
-          </Typography>
-          <Typography color="text.secondary" sx={tokens.article}>
-            Biblical foundations, practical guidance, and stories that help
-            communities understand and support women serving as elders and
-            pastors.
-          </Typography>
-          <Box>
-            <Button variant="contained" href="#explore-scripture">
-              Explore Scripture
-            </Button>
-          </Box>
-        </Stack>
+    <Container maxWidth="lg" sx={{ pb: tokens.layout.section }}>
+      <Stack spacing={0}>
+        <HeroSection {...heroContent} />
         <Box
+          id="resource-hub"
+          tabIndex={-1}
+          role="region"
+          aria-label="Resource hub"
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" },
@@ -87,6 +70,7 @@ export default function Home() {
           aria-label="Resource availability"
           sx={{
             p: tokens.layout.card,
+            mt: tokens.layout.section,
             bgcolor: tokens.color.subtle,
             borderRadius: tokens.radius.surface,
           }}

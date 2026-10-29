@@ -6,6 +6,7 @@ const base = createTheme();
 export const theme = createTheme({
   palette: {
     mode: "light",
+    secondary: { main: color.brand, light: color.subtle },
     primary: {
       main: color.brand,
       dark: color.hover,

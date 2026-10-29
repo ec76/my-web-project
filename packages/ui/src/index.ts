@@ -1,4 +1,6 @@
 export { ContentCard } from "./content-card";
+export { HeroSection } from "./hero-section";
+export type { HeroSectionProps } from "./hero-section";
 export type { ContentCardProps } from "./content-card";
 export { SiteHeader } from "./site-header";
 export type { SiteHeaderProps } from "./site-header";
