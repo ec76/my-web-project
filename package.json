@@ -13,7 +13,10 @@
     "format:check": "prettier --check .",
     "check-types": "turbo run check-types",
     "storybook": "turbo run storybook --filter=@repo/storybook",
-    "build-storybook": "turbo run build-storybook --filter=@repo/storybook"
+    "build-storybook": "turbo run build-storybook --filter=@repo/storybook",
+    "dev:test": "turbo run dev --filter=web",
+    "dev:called-together": "turbo run dev --filter=called-together",
+    "build:called-together": "turbo run build --filter=called-together..."
   },
   "devDependencies": {
     "@storybook/react-vite": "^10.6.5",
