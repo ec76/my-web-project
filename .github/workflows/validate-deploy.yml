@@ -58,10 +58,10 @@ jobs:
           fi
       - name: Build Storybook
         run: npm run build-storybook
-      - name: Build Called Together static export
-        run: npm run build:called-together
-      - name: Verify Called Together static export
-        run: test -f apps/called-together/out/index.html
+      - name: Build and package Called Together standalone server
+        run: npm run package:called-together
+      - name: Smoke-test isolated Called Together artifact
+        run: npm run verify:called-together
       - name: Upload website artifact
         uses: actions/upload-artifact@v7
         with:

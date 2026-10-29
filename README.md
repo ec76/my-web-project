@@ -12,7 +12,8 @@ applications, Storybook, and shared Material UI components in `packages/ui`.
 
 Both websites may use `@repo/ui`. Called Together keeps its ministry content,
 components, and independent Material UI theme inside `apps/called-together`.
-It currently contains only a homepage, with no server services or deployment.
+It contains a homepage and a request-time health endpoint. It is prepared for
+App Service Linux, but its deployment is not enabled.
 
 Repository: [ec76/starweave](https://github.com/ec76/starweave).
 
@@ -48,6 +49,8 @@ npm run dev:test
 npm run dev:called-together
 npm run build
 npm run build:called-together
+npm run package:called-together
+npm run verify:called-together
 npm run lint
 npm run check-types
 npm run storybook
@@ -66,11 +69,102 @@ build is written to `apps/storybook/storybook-static`.
 `npm run build` builds both websites. Each can also build independently:
 `npm run build:azure` targets only `web` and its dependencies, while
 `npm run build:called-together` targets only `called-together` and its dependencies.
-Both preserve Next.js static export and transpile `@repo/ui`; their outputs are
-`apps/web/out` and `apps/called-together/out`, respectively. Serve the appropriate
-`out` directory with a static file server to preview a production export.
+Both transpile `@repo/ui`. The test website retains Next.js static export in
+`apps/web/out`; serve that directory with a static file server for production preview.
+Called Together uses Next.js standalone server output in
+`apps/called-together/.next/standalone` and requires a Node.js server.
 The existing Azure workflow deploys only `apps/web/out`; Called Together is
 validated but is not uploaded or deployed.
+
+## Called Together: App Service Linux preparation
+
+The intended target is separate from the existing Static Web App:
+
+| Setting        | Target                                                                           |
+| -------------- | -------------------------------------------------------------------------------- |
+| Web App        | `called-together-dev-ec76`                                                       |
+| Resource group | `rg-called-together-dev`                                                         |
+| Runtime        | Node 24 LTS on Linux                                                             |
+| URL            | https://called-together-dev-ec76-gyfufcfwg9etchgs.centralus-01.azurewebsites.net |
+
+These are deployment instructions, not confirmation that Azure has been configured.
+No Called Together deployment step, credentials, or Azure resource changes are
+included. The existing `Validate` check name and `apps/web` deployment are preserved.
+
+From the repository root, using Node.js 24 and npm 11.19.1:
+
+```sh
+npm ci
+npm run package:called-together
+npm run verify:called-together
+```
+
+Packaging first runs the filtered application build and its required workspace
+dependencies. The Node.js packaging script then replaces only
+`artifacts/called-together`, copying the full traced standalone tree without
+flattening it. `outputFileTracingRoot` points to the monorepo root so dependencies
+outside the app can be traced. The package includes runtime dependencies and hidden
+Next.js files. Internal links are dereferenced for relocation; links outside the
+source tree are rejected. Environment files, credential files such as `.npmrc`,
+private-key files, and other applications are excluded. Keep secrets out of source,
+public assets, and build-time JavaScript; copying filters cannot remove values
+already embedded in compiled code.
+
+The resulting layout is:
+
+```text
+artifacts/called-together/
+  node_modules/                       # traced runtime dependencies
+  apps/called-together/
+    server.js                         # generated Next.js entry point
+    package.json
+    .next/                            # server build and manifests
+      static/                         # copied browser JS/CSS assets
+    public/                           # copied only when present
+```
+
+Additional traced workspace files retain their generated relative paths.
+Generated artifacts are ignored by Git and Prettier. Do not deploy the repository,
+the static `out` directory, or only the nested application directory. A future
+deployment must upload the **contents** of `artifacts/called-together` to
+`/home/site/wwwroot`, including dotfiles and `node_modules`, and preserve this
+layout. Build on Linux for the Linux target so any native dependencies match the
+runtime. Use the prebuilt package without an Azure/Oryx rebuild or runtime npm
+installation when deployment is enabled in separate work.
+
+The exact Azure Linux startup command, from `/home/site/wwwroot`, is:
+
+```sh
+HOSTNAME=0.0.0.0 node apps/called-together/server.js
+```
+
+The generated server reads Azure's `PORT` environment variable; do not hardcode it
+in the startup command. Explicit `HOSTNAME=0.0.0.0` overrides the container hostname
+and binds all interfaces. This follows the [Next.js standalone server guidance](https://nextjs.org/docs/app/api-reference/config/next-config-js/output)
+and [Azure Node.js port requirements](https://learn.microsoft.com/en-us/azure/app-service/quickstart-nodejs).
+For a manual local preview, change into `artifacts/called-together` and run:
+
+```sh
+HOSTNAME=0.0.0.0 PORT=3001 node apps/called-together/server.js
+```
+
+In PowerShell, set `$env:HOSTNAME = "0.0.0.0"` and `$env:PORT = "3001"`, then run
+`node apps/called-together/server.js` from the artifact root. Stop with Ctrl+C.
+
+`npm run verify:called-together` works on Windows and Linux. It copies the package
+to a fresh OS temporary directory outside the checkout, checks that Next.js resolves
+inside the copy, and starts the generated server with a clean environment,
+`HOSTNAME=0.0.0.0`, and a temporary `PORT`. It checks the homepage, referenced
+JavaScript and CSS (including response bytes), optional public assets, and repeated
+`GET /api/health` responses. Health returns only `{"status":"ok"}` with `no-store`;
+the route is forced dynamic and the verifier checks it is not prerendered.
+The verifier stops the process and deletes its temporary directory on success or
+failure. It does not rely on the checkout's `node_modules`. It is an HTTP smoke
+test, not a browser hydration or visual test.
+
+The existing Linux `Validate` job builds, packages, and smoke-tests Called Together
+using the pinned Node/npm setup. It continues to upload only the `web-static`
+artifact; no Called Together upload or deployment is enabled.
 
 ## Current Azure resources for apps/web
 
@@ -194,10 +288,12 @@ artifact. Open the site URL above to confirm the change is visible.
 Validate uses Node.js 24 and npm 11.19.1, bootstrapped from `runner.temp`
 before repository npm commands. It caches npm downloads using the root lockfile,
 runs `npm ci`, formatting checks, lint, TypeScript checks, unit tests,
-`npm run build:azure`, `npm run build:called-together`, and the Storybook build.
+`npm run build:azure`, `npm run package:called-together`,
+`npm run verify:called-together`, and the Storybook build.
 Lint and TypeScript checks include both websites through their workspace scripts.
 Each website builds independently, so the overlapping `npm run build` does not
-run again. Validation verifies both exported `index.html` files.
+run again. Validation verifies the test website's exported `index.html` and
+smoke-tests Called Together's isolated standalone package on Linux.
 
 Validate verifies `apps/web/out/index.html` and uploads the entire export as
 `web-static`, including hidden files and `staticwebapp.config.json` if used.
