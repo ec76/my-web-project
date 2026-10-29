@@ -5,6 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./content-card": "./src/content-card/index.ts",
+    "./site-header": "./src/site-header/index.ts",
+    "./site-footer": "./src/site-footer/index.ts",
     "./theme": "./src/theme.ts",
     "./theme-provider": "./src/theme-provider.tsx",
     "./*": "./src/*.tsx"
