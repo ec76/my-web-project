@@ -12,8 +12,8 @@ applications, Storybook, and shared Material UI components in `packages/ui`.
 
 Both websites may use `@repo/ui`. Called Together keeps its ministry content,
 components, and independent Material UI theme inside `apps/called-together`.
-It contains a homepage and a request-time health endpoint. It is prepared for
-App Service Linux, but its deployment is not enabled.
+It contains a homepage and a request-time health endpoint, with a separate
+App Service Linux deployment job in the existing workflow.
 
 Repository: [ec76/starweave](https://github.com/ec76/starweave).
 
@@ -73,10 +73,11 @@ Both transpile `@repo/ui`. The test website retains Next.js static export in
 `apps/web/out`; serve that directory with a static file server for production preview.
 Called Together uses Next.js standalone server output in
 `apps/called-together/.next/standalone` and requires a Node.js server.
-The existing Azure workflow deploys only `apps/web/out`; Called Together is
-validated but is not uploaded or deployed.
+The existing Azure workflow deploys `apps/web/out` to its Static Web App and
+the validated Called Together standalone package to its separate App Service,
+subject to the selective deployment decisions documented below.
 
-## Called Together: App Service Linux preparation
+## Called Together: App Service Linux deployment
 
 The intended target is separate from the existing Static Web App:
 
@@ -87,9 +88,10 @@ The intended target is separate from the existing Static Web App:
 | Runtime        | Node 24 LTS on Linux                                                             |
 | URL            | https://called-together-dev-ec76-gyfufcfwg9etchgs.centralus-01.azurewebsites.net |
 
-These are deployment instructions, not confirmation that Azure has been configured.
-No Called Together deployment step, credentials, or Azure resource changes are
-included. The existing `Validate` check name and `apps/web` deployment are preserved.
+The existing `Validate` check name and `apps/web` deployment are preserved.
+The separate `Deploy Called Together` job requires successful validation and
+an affirmative deployment decision. These instructions do not confirm that the
+Azure identity, permissions, runtime, or deployment have been verified live.
 
 From the repository root, using Node.js 24 and npm 11.19.1:
 
@@ -125,12 +127,12 @@ artifacts/called-together/
 
 Additional traced workspace files retain their generated relative paths.
 Generated artifacts are ignored by Git and Prettier. Do not deploy the repository,
-the static `out` directory, or only the nested application directory. A future
-deployment must upload the **contents** of `artifacts/called-together` to
+the static `out` directory, or only the nested application directory. The
+deployment uploads the **contents** of `artifacts/called-together` to
 `/home/site/wwwroot`, including dotfiles and `node_modules`, and preserve this
 layout. Build on Linux for the Linux target so any native dependencies match the
-runtime. Use the prebuilt package without an Azure/Oryx rebuild or runtime npm
-installation when deployment is enabled in separate work.
+runtime. Deployment uses the prebuilt package without an Azure/Oryx rebuild or
+runtime npm installation.
 
 The exact Azure Linux startup command, from `/home/site/wwwroot`, is:
 
@@ -162,9 +164,36 @@ The verifier stops the process and deletes its temporary directory on success or
 failure. It does not rely on the checkout's `node_modules`. It is an HTTP smoke
 test, not a browser hydration or visual test.
 
-The existing Linux `Validate` job builds, packages, and smoke-tests Called Together
-using the pinned Node/npm setup. It continues to upload only the `web-static`
-artifact; no Called Together upload or deployment is enabled.
+The Linux `Validate` job builds, packages, and smoke-tests Called Together using
+the pinned Node/npm setup. It archives the exact smoke-tested package as
+`called-together.tar.gz`, retaining hidden files, directory layout, permissions,
+and any symlinks through the artifact handoff. Deployment downloads by immutable
+artifact ID, verifies SHA-256, and extracts with permissions preserved. It does
+not check out source, rebuild, or reinstall dependencies.
+
+The job uses `azure/login@v3` with the existing repository **variables**
+`CALLED_TOGETHER_AZURE_CLIENT_ID`, `CALLED_TOGETHER_AZURE_TENANT_ID`, and
+`CALLED_TOGETHER_AZURE_SUBSCRIPTION_ID`. Only this job has `id-token: write`.
+It has no GitHub environment: Azure trusts the branch subject
+`repo:ec76/starweave:ref:refs/heads/main`. Preserve that subject when changing
+the workflow. No publish profile, client secret, or Static Web App token is
+used by this job.
+
+Before uploading with `azure/webapps-deploy@v3`, the job sets
+`SCM_DO_BUILD_DURING_DEPLOYMENT=false` and `ENABLE_ORYX_BUILD=false`, suppressing
+app-setting output, and supplies the exact `startup-command` above. After upload,
+18 bounded attempts check `/api/health` for successful JSON with `status: "ok"`
+and the homepage for a successful response containing `Called Together`.
+Each request has a 5-second connection timeout and a 10-second total timeout,
+with 5 seconds between failed attempts and an 8-minute step timeout. Failure
+fails the deployment job and does not automatically roll back the app.
+
+If login fails, check the three variables, OIDC subject, and Azure role permissions.
+The identity must be able to deploy content and update this app's settings/startup
+command. If startup or readiness fails, inspect App Service **Log stream** and
+deployment logs, confirm Node 24 LTS on Linux, the nested server path, Azure's
+`PORT`, and both remote-build settings. Public GitHub-runner checks also require
+the site to be reachable without authentication or blocking access restrictions.
 
 ## Current Azure resources for apps/web
 
@@ -278,12 +307,12 @@ and select Prettier for the project's supported languages.
 
 The workflow in `.github/workflows/validate-deploy.yml` runs on pushes to
 `main`, pull requests targeting `main`, and manual runs. Its flow is
-**Validate -> Deploy**.
+**Validate -> Select deployments -> Deploy / Deploy Called Together**.
 
 Work on a feature branch, push it, and open a pull request targeting `main`.
 Wait for Validate and review to pass, then merge. The resulting push to `main`
-runs Validate again; only after success does Deploy publish that exact build
-artifact. Open the site URL above to confirm the change is visible.
+runs Validate again; only after success do selected deployment jobs publish
+their corresponding build artifacts. Open each site URL to confirm visibility.
 
 Validate uses Node.js 24 and npm 11.19.1, bootstrapped from `runner.temp`
 before repository npm commands. It caches npm downloads using the root lockfile,
@@ -302,10 +331,13 @@ to Azure without installing dependencies, rebuilding, or invoking Oryx.
 Only pushes to main and manual runs on main deploy. Pull requests validate
 without accessing the deployment secret or creating previews.
 
-Both jobs have 20-minute timeouts and read-only repository contents permissions.
+Validation and deployment jobs have 20-minute timeouts; selection has 5 minutes.
+All jobs have read-only repository contents permissions.
 New runs cancel outdated runs for the same branch or pull request. Validation
 needs no deployment or Turborepo remote cache credentials; Deploy uses the
-existing Azure deployment-token secret.
+existing Azure deployment-token secret. Called Together uses the OIDC variables
+and job-scoped token permission described above. Only Select deployments has
+`actions: read`, for baseline discovery; validation has no Actions history access.
 
 The superseded CI and Azure workflows and preview cleanup job are removed.
 Any preview environments created by the old workflow may need one-time cleanup
@@ -314,9 +346,97 @@ does not delete those environments automatically.
 
 View results under **Actions > Validate and Deploy**, or the pull request's
 **Checks** tab. Manual runs are available through **Run workflow**. The job
-names are **Validate** and **Deploy**. Review branch-protection required checks
+names include **Validate**, **Select deployments**, **Deploy**, and
+**Deploy Called Together**. Review branch-protection required checks
 if they reference old workflow/job names; require Validate rather than Deploy,
 which is intentionally skipped on pull requests.
+
+### Automatic deployment selection and recovery
+
+Validation always runs the existing checks, both application builds, Storybook,
+Called Together packaging and isolated smoke tests, and both artifact uploads.
+Selection optimizes deployment only. Pull requests and manual runs off `main`
+never deploy; their selection job is skipped.
+
+On a push to `main`, `scripts/select-deployments.mjs` uses GitHub Actions history
+for this workflow to find each application's last **successful deployment job**:
+`Deploy` for workspace `web`, and `Deploy Called Together` for workspace
+`called-together`. Overall run success is not used: a successful website deployment
+counts even if the other deployment fails. Skipped, cancelled, and failed deployment
+jobs do not advance a baseline. Keep the deployment job names stable.
+
+History enumeration paginates workflow runs and attempt-specific job lists, examines
+all rerun attempts, and excludes the currently running attempt. Earlier attempts of
+the same run remain eligible. The most recently completed successful deployment
+job wins, including an old commit deployed by a later rerun. The API scan has a
+90-second / 500-request budget; failed, incomplete, inaccessible, or exhausted
+history falls back to deployment rather than assuming nothing changed.
+The unfiltered run list avoids GitHub's filtered-search 1,000-result ceiling.
+See GitHub's [run history](https://docs.github.com/en/rest/actions/workflow-runs)
+and [attempt-specific job history](https://docs.github.com/en/rest/actions/workflow-jobs)
+API documentation.
+
+Selection checks out full Git history (`fetch-depth: 0`), verifies each baseline
+is an ancestor of the current SHA, and compares the full `baseline..current`
+range, including deleted and renamed paths. A missing/unreachable baseline or
+unknown ancestry conservatively deploys that application. This preserves pending
+changes after failed deployments: a subsequent documentation-only push still
+retries the website whose application changes have not been successfully deployed.
+
+The installed Turbo 2.11.10 supplies its actual package graph through a supported
+`turbo query`, including development and transitive workspace dependencies. The
+graph exported by Validate is used without installing dependencies in selection.
+Git provides the per-application SHA ranges; explicit path classification prevents
+Turbo's default documentation hashing from triggering unnecessary deployments.
+
+| Change since each app's successful deployment                                    | Automatic result       |
+| -------------------------------------------------------------------------------- | ---------------------- |
+| `apps/web` source/config/assets                                                  | Test website           |
+| `apps/called-together` source/config/assets                                      | Called Together        |
+| Workspace dependency, including transitive dependency                            | Each consuming website |
+| Root lockfile, root configuration, workflow, selection logic, or uncertain input | Both conservatively    |
+| Called Together packaging/smoke scripts                                          | Called Together        |
+| Conventional documentation only, with no pending application changes             | Neither                |
+| `apps/storybook` only, with no website dependency on it                          | Neither                |
+
+Documentation exclusions cover conventional README/changelog/contribution/license/
+agent documents at root or workspace roots, their `docs/` directories, root text
+documents, and GitHub Markdown documentation. Markdown/MDX under app/source trees
+and public assets remains an input. If application code or a build starts consuming
+a file in an excluded documentation location, add its repository-relative path
+or directory to `documentationBuildInputs` in `scripts/deployment-policy.json`.
+Those explicit inputs override the documentation exclusion. The current websites
+do not consume these conventional documentation files. Unknown paths and graph
+failures deploy conservatively. No build task inputs or cache behavior are changed.
+
+Each selection job writes baseline SHAs, explicit deployment booleans, and reasons
+to its GitHub Actions job summary. A missing baseline on the first run deploys
+that website even if the current changes are documentation only. Successfully
+deployed SHAs are tracked entirely through job history; no checkpoint commits or
+repository write permissions are required.
+
+For recovery, open **Actions > Validate and Deploy > Run workflow**, select branch
+`main`, and choose `deploy_target`:
+
+- `auto` (default): compare against each successful deployment baseline.
+- `test`: force only the test website after full validation.
+- `called-together`: force only Called Together after full validation.
+- `both`: force both after full validation.
+
+Manual forced choices override missing history and change selection, but do not
+bypass validation or the main-branch restriction. Use them after an out-of-band
+Azure change, when deliberately redeploying unchanged code, or when recovering
+from expired artifacts (run the whole workflow to regenerate them). **Re-run failed
+jobs** can retry a failed deployment while its original artifacts remain available;
+rerun attempts are included in future baseline discovery. Azure OIDC authentication,
+artifact handoff across GitHub jobs, historical API access, and live readiness still
+require a GitHub Actions run on `main` to verify.
+
+Run the focused selection tests locally with:
+
+```sh
+node --test scripts/deployment-decisions.test.mjs
+```
 
 ## Testing
 
