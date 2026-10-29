@@ -1,7 +1,11 @@
-# Personal web project
+# Starweave
 
-A minimal Turborepo workspace with one Next.js App Router application and a
-shared Material UI component package.
+Starweave is a generic Turborepo monorepo for independent applications, each
+with its own pages and deployment. It currently includes a Next.js App Router
+application in `apps/web`, Storybook in `apps/storybook`, and shared Material UI
+components in `packages/ui`.
+
+Repository: [ec76/starweave](https://github.com/ec76/starweave).
 
 ## Local setup
 
@@ -9,8 +13,8 @@ Use Node.js 24 (the repository supports `>=24`; CI selects 24) and exactly
 npm 11.19.1, as required by `devEngines.packageManager`. For a fresh clone:
 
 ```sh
-git clone https://github.com/ec76/my-web-project.git
-cd my-web-project
+git clone https://github.com/ec76/starweave.git
+cd starweave
 npm ci
 ```
 
@@ -44,7 +48,13 @@ npm run test:coverage
 Storybook runs at [http://localhost:6006](http://localhost:6006). The static
 build is written to `apps/storybook/storybook-static`.
 
-## Azure Static Web Apps Free
+## Current Azure resources for apps/web
+
+The current web application deploys to Azure Static Web Apps Free. These existing
+Azure resource names, site URL, and deployment-secret reference remain unchanged
+by the Starweave repository rename. They identify the current web deployment,
+not the monorepo or future applications. The current static-export deployment
+architecture is preserved; an App Service migration is outside this change.
 
 | Azure resource       | Value                                                   |
 | -------------------- | ------------------------------------------------------- |
