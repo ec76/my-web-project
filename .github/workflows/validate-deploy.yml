@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: Websites to deploy after validation
+        type: choice
+        default: auto
+        options: [auto, test, called-together, both]
 
 permissions:
   contents: read
@@ -20,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
+      dependency-graph: ${{ steps.dependency-graph.outputs.graph }}
       called-together-artifact-id: ${{ steps.upload-called-together.outputs.artifact-id }}
       called-together-sha256: ${{ steps.archive-called-together.outputs.sha256 }}
     steps:
@@ -51,6 +58,11 @@ jobs:
         run: npm run check-types
       - name: Run unit tests
         run: npm test
+      - name: Test deployment selection
+        run: node --test scripts/deployment-decisions.test.mjs
+      - name: Export workspace dependency graph
+        id: dependency-graph
+        run: node scripts/select-deployments.mjs --graph
       - name: Build website static export
         run: npm run build:azure
       - name: Verify static export
@@ -85,10 +97,40 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
 
-  deploy:
-    name: Deploy
+  deployment-decisions:
+    name: Select deployments
     needs: validate
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      deploy-test: ${{ steps.selection.outputs.deploy-test }}
+      deploy-called-together: ${{ steps.selection.outputs.deploy-called-together }}
+    steps:
+      - name: Check out full Git history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Compare each app to its last successful deployment
+        id: selection
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_TARGET: ${{ inputs.deploy_target || 'auto' }}
+          DEPLOYMENT_GRAPH: ${{ needs.validate.outputs.dependency-graph }}
+        run: node scripts/select-deployments.mjs
+
+  deploy:
+    name: Deploy
+    needs: [validate, deployment-decisions]
+    if: needs.validate.result == 'success' && needs.deployment-decisions.outputs.deploy-test == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -113,11 +155,11 @@ jobs:
 
   deploy-called-together:
     name: Deploy Called Together
-    needs: validate
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [validate, deployment-decisions]
+    if: needs.validate.result == 'success' && needs.deployment-decisions.outputs.deploy-called-together == 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # No GitHub environment: Azure trusts the main-branch OIDC subject.
+    # No environment: retain repo:ec76/starweave:ref:refs/heads/main OIDC trust.
     permissions:
       contents: read
       id-token: write
