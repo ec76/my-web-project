@@ -63,6 +63,12 @@ a global reduction rule). No horizontal scrolling at 320px.
 
 ## Reference examples
 
+The homepage hero uses a wider introduction (3:2 columns from md), 32px gap
+below md / 64px from md, and 24px panel padding / 32px from md. Its introduction
+uses the requested 18px article size. The panel consumes `palette.secondary.light`
+(the subtle brand surface). Shared hero spacing uses theme spacing units and its
+surface radius is 1.5 times the theme's 8px control radius (12px).
+
 Storybook's **Called Together / Design system** contains tokens, typography,
 spacing, container rules, controls, surfaces, and the composed homepage.
 Generic shared component stories remain brand-neutral. Reuse the tokens instead
