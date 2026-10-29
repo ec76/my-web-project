@@ -1,5 +1,5 @@
 {
-  "name": "my-web-project",
+  "name": "starweave",
   "private": true,
   "scripts": {
     "test": "turbo run test",

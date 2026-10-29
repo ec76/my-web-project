@@ -9,7 +9,15 @@ Read `docs/README.md` inside that installed package first, then read the relevan
 This block is written and re-added by `turbo` before repository-scoped commands when an AI agent is detected. In the Turborepo source repository, its template is defined in `crates/turborepo-cli/src/cli/agent_guidance.rs`. Removing the managed block while updates are enabled means a later qualifying invocation will add it again. Set `"agentGuidance": true` in the root `turbo.json` or `turbo.jsonc` to opt in; this does not remove an existing block. Keep the block committed with your work to avoid an uncommitted change on the next agent invocation.
 <!-- END:turborepo-agent-rules -->
 
-## Repository conventions
+## Starweave repository conventions
+
+Starweave ([ec76/starweave](https://github.com/ec76/starweave)) is a generic
+monorepo for independent applications with their own pages and deployments.
+Preserve workspace package names such as `@repo/ui` and the current `apps/web`
+and `apps/storybook` paths unless a task explicitly changes them.
+The current Azure resources for `apps/web` retain their original names and URL
+as documented in README.md. Preserve their deployment-secret reference and
+static-export deployment configuration; an App Service migration is separate work.
 
 - Run commands from the repository root using Node.js 24 and npm 11.19.1.
   Install fresh clones with `npm ci`; preserve version requirements and the lockfile.
