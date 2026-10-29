@@ -69,14 +69,15 @@ export function SiteHeader({
       sx={{
         borderBottom: 1,
         borderColor: "divider",
-        bgcolor: "background.default",
-        py: 2,
+        bgcolor: "background.paper",
+        py: 1,
       }}
     >
       <Container maxWidth="lg">
         <Box
           sx={{
             display: "grid",
+            minHeight: { xs: 48, md: 64 },
             gridTemplateColumns: {
               xs: "minmax(0, 1fr) auto",
               md: "minmax(0, 1fr) auto auto",
@@ -95,7 +96,7 @@ export function SiteHeader({
             LinkComponent={LinkComponent}
             href={brandHref}
             underline="none"
-            color="text.primary"
+            color="primary"
             sx={{
               display: "inline-flex",
               alignItems: "center",
@@ -107,7 +108,7 @@ export function SiteHeader({
               gridRow: 1,
               justifySelf: "start",
               overflowWrap: "anywhere",
-              fontWeight: 700,
+              fontWeight: 600,
             }}
           >
             {logo != null && (
