@@ -342,7 +342,7 @@ and select Prettier for the project's supported languages.
 
 The workflow in `.github/workflows/validate-deploy.yml` runs on pushes to
 `main`, pull requests targeting `main`, and manual runs. Its flow is
-**Validate -> Select deployments -> Deploy / Deploy Called Together**.
+**Validate -> Select deployments -> Deploy Test / Deploy Called Together**.
 
 Work on a feature branch, push it, and open a pull request targeting `main`.
 Wait for Validate and review to pass, then merge. The resulting push to `main`
@@ -361,7 +361,7 @@ smoke-tests Called Together's isolated standalone package on Linux.
 
 Validate verifies `apps/web/out/index.html` and uploads the entire export as
 `web-static`, including hidden files and `staticwebapp.config.json` if used.
-Deploy requires successful validation, downloads the artifact, and uploads it
+Deploy Test requires successful validation, downloads the artifact, and uploads it
 to Azure without installing dependencies, rebuilding, or invoking Oryx.
 Only pushes to main and manual runs on main deploy. Pull requests validate
 without accessing the deployment secret or creating previews.
@@ -369,7 +369,7 @@ without accessing the deployment secret or creating previews.
 Validation and deployment jobs have 20-minute timeouts; selection has 5 minutes.
 All jobs have read-only repository contents permissions.
 New runs cancel outdated runs for the same branch or pull request. Validation
-needs no deployment or Turborepo remote cache credentials; Deploy uses the
+needs no deployment or Turborepo remote cache credentials; Deploy Test uses the
 existing Azure deployment-token secret. Called Together uses the OIDC variables
 and job-scoped token permission described above. Only Select deployments has
 `actions: read`, for baseline discovery; validation has no Actions history access.
@@ -381,9 +381,9 @@ does not delete those environments automatically.
 
 View results under **Actions > Validate and Deploy**, or the pull request's
 **Checks** tab. Manual runs are available through **Run workflow**. The job
-names include **Validate**, **Select deployments**, **Deploy**, and
+names include **Validate**, **Select deployments**, **Deploy Test**, and
 **Deploy Called Together**. Review branch-protection required checks
-if they reference old workflow/job names; require Validate rather than Deploy,
+if they reference old workflow/job names; require Validate rather than Deploy Test,
 which is intentionally skipped on pull requests.
 
 ### Automatic deployment selection and recovery
@@ -395,8 +395,10 @@ never deploy; their selection job is skipped.
 
 On a push to `main`, `scripts/select-deployments.mjs` uses GitHub Actions history
 for this workflow to find each application's last **successful deployment job**:
-`Deploy` for workspace `web`, and `Deploy Called Together` for workspace
-`called-together`. Overall run success is not used: a successful website deployment
+`Deploy Test` (job ID `deploy`) for workspace `web`, and `Deploy Called Together`
+for workspace `called-together`. Historical test deployments named `Deploy` are
+also recognized, so renaming the display name preserves existing baselines.
+Overall run success is not used: a successful website deployment
 counts even if the other deployment fails. Skipped, cancelled, and failed deployment
 jobs do not advance a baseline. Keep the deployment job names stable.
 

@@ -250,6 +250,35 @@ function history(runs, jobs, options = {}) {
     }),
   };
 }
+for (const name of ["Deploy", "Deploy Test"]) {
+  test(`historical successful test deployment named ${name} remains eligible`, async () => {
+    const result = await history([run(1)], {
+      "1/1": [job(name, 1), job("Deploy Called Together", 2)],
+    }).result;
+    assert.equal(result.test.sha, sha(1));
+    assert.equal(result["called-together"].sha, sha(1));
+  });
+}
+
+test("mixed deployment names select the latest success, ignoring failed renamed jobs", async () => {
+  const result = await history([run(3), run(2), run(1)], {
+    "3/1": [job("Deploy Test", 5, { conclusion: "failure" })],
+    "2/1": [job("Deploy Test", 4)],
+    "1/1": [job("Deploy", 1)],
+  }).result;
+  assert.equal(result.test.sha, sha(2));
+});
+
+test("a later successful legacy-name rerun takes precedence over the new name", async () => {
+  const result = await history([run(2), run(1, { run_attempt: 2 })], {
+    "2/1": [job("Deploy Test", 3)],
+    "1/2": [job("Deploy", 4)],
+    "1/1": [job("Deploy", 1)],
+  }).result;
+  assert.equal(result.test.sha, sha(1));
+  assert.equal(result.test.attempt, 2);
+});
+
 test("history paginates runs and jobs; job success counts when overall run failed", async () => {
   const fixture = history(
     [run(4), run(3), run(2, { conclusion: "failure" }), run(1)],
