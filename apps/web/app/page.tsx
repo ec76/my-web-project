@@ -64,7 +64,7 @@ export default function Home() {
             />
           </Box>
           <Typography variant="body2" color="text.secondary">
-            Deployment pipeline verified
+            Selective Deployment
           </Typography>
         </Stack>
       </Container>
